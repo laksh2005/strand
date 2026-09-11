@@ -1,22 +1,29 @@
 # Strand
 
-A privacy-aware event timeline. Events are stored per user and shown on a timeline. Each category (conversation, location, physiological, note) can be turned ON/OFF. When OFF, the backend stops returning that data — not just the UI.
+A privacy-aware event timeline. Events are stored per user and shown on a timeline. Each category (conversation, location, physiological, note) can be turned ON/OFF. When OFF, the backend stops returning that data, not just the UI.
+
+Claude Code was used to assist with this assignment. All code and decisions were reviewed and are understood by me.
 
 ## Engineering notes
 
 **Where is authorization enforced, and why?**
-In the backend, in `eventService.ts`. Never in the frontend. Even if the UI hides something, the API checks permissions again on every request — so it can't be bypassed with a direct API call.
+
+In the backend, in `eventService.ts`. Never in the frontend. Even if the UI hides something, the API checks permissions again on every request, so it can't be bypassed with a direct API call.
 
 **What happens if a user requests data they can't see?**
-`GET /events` just leaves out disabled categories. `GET /events/{id}` on a specific event returns `403` (not `404`, since the event exists — access is denied). Both cases are logged to the audit log.
+
+`GET /events` just leaves out disabled categories. `GET /events/{id}` on a specific event returns `403` (not `404`, since the event exists, access is just denied). Both cases are logged to the audit log.
 
 **One weakness:**
-There's no real auth — just one hardcoded demo user. Permissions aren't tied to a verified identity, they're global settings. Adding real login would need permissions and audit logs scoped per authenticated user, not a static email lookup.
+
+There's no real auth, just one hardcoded demo user. Permissions aren't tied to a verified identity, they're global settings. Adding real login would need permissions and audit logs scoped per authenticated user, not a static email lookup.
 
 **At 1 million events per user, what changes?**
+
 Switch from offset pagination to cursor-based pagination (it gets slow at scale). Keep the existing indexes on `(user_id, type)` and `(user_id, timestamp)`. Consider partitioning the events table by time, and moving the audit log to its own storage since it's write-heavy and rarely read.
 
 **With one more day:**
+
 Add real authentication, date-range filtering, and a few more edge-case tests (bad pagination values, concurrent permission changes).
 
 ## Stack
@@ -79,7 +86,7 @@ web/
     components/              Timeline, TypeFilter, PrivacyToggles, AuditLogView
 ```
 
-All privacy filtering happens in `eventService.ts`. Every read checks the user's enabled categories before returning data. Routes never query events directly — only through this service.
+All privacy filtering happens in `eventService.ts`. Every read checks the user's enabled categories before returning data. Routes never query events directly, only through this service.
 
 ## API
 
