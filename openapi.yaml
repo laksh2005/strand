@@ -1,0 +1,218 @@
+openapi: 3.0.3
+info:
+  title: Strand API
+  version: 1.0.0
+  description: >
+    A privacy-aware event timeline. Every read is filtered server-side by the
+    caller's category permissions — disabling a category makes the backend
+    stop returning that data, regardless of what the frontend does.
+servers:
+  - url: http://localhost:4000
+
+components:
+  schemas:
+    EventType:
+      type: string
+      enum: [conversation, location, physiological, note]
+    Event:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        userId: { type: string, format: uuid }
+        timestamp: { type: string, format: date-time }
+        type: { $ref: "#/components/schemas/EventType" }
+        title: { type: string }
+        content: { type: string }
+        createdAt: { type: string, format: date-time }
+    Permission:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        userId: { type: string, format: uuid }
+        type: { $ref: "#/components/schemas/EventType" }
+        enabled: { type: boolean }
+    AuditEntry:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        timestamp: { type: string, format: date-time }
+        userId: { type: string, format: uuid }
+        action:
+          type: string
+          enum: [EVENT_CREATED, EVENT_DELETED, EVENT_ACCESS_DENIED, PERMISSION_CHANGED, EVENTS_LISTED]
+        eventType:
+          oneOf:
+            - { $ref: "#/components/schemas/EventType" }
+            - type: "null"
+        result:
+          type: string
+          enum: [ALLOWED, DENIED, SUCCESS]
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+
+paths:
+  /events:
+    get:
+      summary: List events (filtered by the caller's enabled categories)
+      parameters:
+        - name: type
+          in: query
+          schema: { $ref: "#/components/schemas/EventType" }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        "200":
+          description: A page of events, already filtered by permissions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events:
+                    type: array
+                    items: { $ref: "#/components/schemas/Event" }
+                  total: { type: integer }
+                  limit: { type: integer }
+                  offset: { type: integer }
+        "400":
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    post:
+      summary: Create an event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, title, content]
+              properties:
+                type: { $ref: "#/components/schemas/EventType" }
+                title: { type: string }
+                content: { type: string }
+                timestamp: { type: string, format: date-time }
+      responses:
+        "201":
+          description: Created event
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Event" }
+        "400":
+          description: Invalid body
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /events/{id}:
+    get:
+      summary: Get a single event by id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: The event
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Event" }
+        "403":
+          description: Event exists but its category is disabled
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Event does not exist
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      summary: Delete an event
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Event does not exist
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /permissions:
+    get:
+      summary: List the caller's category permissions
+      responses:
+        "200":
+          description: Permission list
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Permission" }
+
+  /permissions/{type}:
+    put:
+      summary: Enable or disable a category
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/EventType" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enabled]
+              properties:
+                enabled: { type: boolean }
+      responses:
+        "200":
+          description: Updated permission
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Permission" }
+        "400":
+          description: Invalid type or body
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /audit-log:
+    get:
+      summary: List audit log entries (read-only)
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        "200":
+          description: A page of audit entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entries:
+                    type: array
+                    items: { $ref: "#/components/schemas/AuditEntry" }
+                  total: { type: integer }
+                  limit: { type: integer }
+                  offset: { type: integer }
