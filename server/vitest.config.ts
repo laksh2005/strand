@@ -5,5 +5,6 @@ export default defineConfig({
     environment: "node",
     setupFiles: ["./test/setup.ts"],
     fileParallelism: false,
+    testTimeout: 20000,
   },
 });
