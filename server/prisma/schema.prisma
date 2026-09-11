@@ -1,0 +1,79 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum EventType {
+  conversation
+  location
+  physiological
+  note
+}
+
+enum AuditAction {
+  EVENT_CREATED
+  EVENT_DELETED
+  EVENT_ACCESS_DENIED
+  PERMISSION_CHANGED
+  EVENTS_LISTED
+}
+
+enum AuditResult {
+  ALLOWED
+  DENIED
+  SUCCESS
+}
+
+model User {
+  id          String       @id @default(uuid())
+  email       String       @unique
+  createdAt   DateTime     @default(now()) @map("created_at")
+  events      Event[]
+  permissions Permission[]
+  auditLogs   AuditLog[]
+
+  @@map("users")
+}
+
+model Event {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  timestamp DateTime
+  type      EventType
+  title     String
+  content   String
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([userId, type])
+  @@index([userId, timestamp])
+  @@map("events")
+}
+
+model Permission {
+  id      String    @id @default(uuid())
+  userId  String    @map("user_id")
+  user    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type    EventType
+  enabled Boolean   @default(true)
+
+  @@unique([userId, type])
+  @@map("permissions")
+}
+
+model AuditLog {
+  id        String       @id @default(uuid())
+  timestamp DateTime     @default(now())
+  userId    String       @map("user_id")
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action    AuditAction
+  eventType EventType?   @map("event_type")
+  result    AuditResult
+
+  @@index([userId, timestamp])
+  @@map("audit_logs")
+}
